@@ -134,7 +134,7 @@ fn get_camera(lookfrom: vec3f, lookat: vec3f, vup: vec3f, vfov: f32, aspect_rati
   return camera;
 }
 
-fn envoriment_color(direction: vec3f, color1: vec3f, color2: vec3f) -> vec3f
+fn environment_color(direction: vec3f, color1: vec3f, color2: vec3f) -> vec3f
 {
   var unit_direction = normalize(direction);
   var t = 0.5 * (unit_direction.y + 1.0);
@@ -159,15 +159,29 @@ fn check_ray_collision(r: ray, max: f32) -> hit_record
   var trianglesCount = i32(uniforms[22]);
   var meshCount = i32(uniforms[27]);
 
-  var record = hit_record(RAY_TMAX, vec3f(0.0), vec3f(0.0), vec4f(0.0), vec4f(0.0), false, false);
-  var closest = record;
+  var record = hit_record(max, vec3f(0.0), vec3f(0.0), vec4f(0.0), vec4f(0.0), false, false);
+  var record_sphere = hit_record(max, vec3f(0.0), vec3f(0.0), vec4f(0.0), vec4f(0.0), false, false);
 
+  for(var i = 0; i < spheresCount; i++) {
+    var sphere_i = spheresb[i];
+    var sphere_center = vec3f(sphere_i.transform[0],sphere_i.transform[1], sphere_i.transform[2]);
+    var sphere_radius = f32(sphere_i.transform[3]);
+    hit_sphere(sphere_center, sphere_radius, r, &record_sphere, RAY_TMAX);
+
+    if (record_sphere.hit_anything && record_sphere.t < record.t) {
+      record = record_sphere;
+      record.object_color = sphere_i.color;
+      record.object_material = sphere_i.material;
+    };
+  }
+
+  var closest = record;
   return closest;
 }
 
 fn lambertian(normal : vec3f, absorption: f32, random_sphere: vec3f, rng_state: ptr<function, u32>) -> material_behaviour
 {
-  return material_behaviour(true, vec3f(0.0));
+  return material_behaviour(false, vec3f(0.0));
 }
 
 fn metal(normal : vec3f, direction: vec3f, fuzz: f32, random_sphere: vec3f) -> material_behaviour
@@ -191,17 +205,26 @@ fn trace(r: ray, rng_state: ptr<function, u32>) -> vec3f
   var light = vec3f(0.0);
   var color = vec3f(1.0);
   var r_ = r;
-  
+
   var backgroundcolor1 = int_to_rgb(i32(uniforms[11]));
   var backgroundcolor2 = int_to_rgb(i32(uniforms[12]));
   var behaviour = material_behaviour(true, vec3f(0.0));
 
-  for (var j = 0; j < maxbounces; j = j + 1)
+  var environment_color = environment_color(r_.direction, backgroundcolor1, backgroundcolor2);
+
+  for (var j = 0; j < 1; j = j + 1)
   {
+    // pega objeto mais próximo onde houve colisão
+    var closest = check_ray_collision(r_, RAY_TMAX);
 
+    if (closest.hit_anything) {
+      color = vec3(1.0, 0.0, 0.0);
+    }
+    else {
+      return environment_color;
+    }
   }
-
-  return light;
+  return color;
 }
 
 @compute @workgroup_size(THREAD_COUNT, THREAD_COUNT, 1)
@@ -225,13 +248,23 @@ fn render(@builtin(global_invocation_id) id : vec3u)
     var cam = get_camera(lookfrom, lookat, vec3(0.0, 1.0, 0.0), uniforms[10], 1.0, uniforms[6], uniforms[5]);
     var samples_per_pixel = i32(uniforms[4]);
 
-    var color = vec3(rng_next_float(&rng_state), rng_next_float(&rng_state), rng_next_float(&rng_state));
+    //var color = vec3(rng_next_float(&rng_state), rng_next_float(&rng_state), rng_next_float(&rng_state));
+    var color = vec3f(0.0);
 
     // Steps:
     // 1. Loop for each sample per pixel
     // 2. Get ray
     // 3. Call trace function
     // 4. Average the color
+    var avg_light = vec3f(0.0);
+
+    for (var i = 0; i < samples_per_pixel; i++) {
+      var ray = get_ray(cam, uv, &rng_state);
+      var light = trace(ray, &rng_state);
+      color += light;
+    }
+
+    color = color/f32(samples_per_pixel);
 
     var color_out = vec4(linear_to_gamma(color), 1.0);
     var map_fb = mapfb(id.xy, rez);
