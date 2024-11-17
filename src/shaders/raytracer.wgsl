@@ -160,9 +160,9 @@ fn check_ray_collision(r: ray, max: f32) -> hit_record
   var meshCount = i32(uniforms[27]);
 
   var record = hit_record(max, vec3f(0.0), vec3f(0.0), vec4f(0.0), vec4f(0.0), false, false);
-  var record_sphere = hit_record(max, vec3f(0.0), vec3f(0.0), vec4f(0.0), vec4f(0.0), false, false);
 
   for(var i = 0; i < spheresCount; i++) {
+    var record_sphere = hit_record(max, vec3f(0.0), vec3f(0.0), vec4f(0.0), vec4f(0.0), false, false);
     var sphere_i = spheresb[i];
     var sphere_center = vec3f(sphere_i.transform[0],sphere_i.transform[1], sphere_i.transform[2]);
     var sphere_radius = f32(sphere_i.transform[3]);
@@ -181,7 +181,8 @@ fn check_ray_collision(r: ray, max: f32) -> hit_record
 
 fn lambertian(normal : vec3f, absorption: f32, random_sphere: vec3f, rng_state: ptr<function, u32>) -> material_behaviour
 {
-  return material_behaviour(false, vec3f(0.0));
+  var direction = normalize(normal + random_sphere);
+  return material_behaviour(false, direction);
 }
 
 fn metal(normal : vec3f, direction: vec3f, fuzz: f32, random_sphere: vec3f) -> material_behaviour
@@ -208,23 +209,31 @@ fn trace(r: ray, rng_state: ptr<function, u32>) -> vec3f
 
   var backgroundcolor1 = int_to_rgb(i32(uniforms[11]));
   var backgroundcolor2 = int_to_rgb(i32(uniforms[12]));
-  var behaviour = material_behaviour(true, vec3f(0.0));
 
-  var environment_color = environment_color(r_.direction, backgroundcolor1, backgroundcolor2);
-
-  for (var j = 0; j < 1; j = j + 1)
+  for (var j = 0; j < maxbounces; j = j + 1)
   {
     // pega objeto mais próximo onde houve colisão
     var closest = check_ray_collision(r_, RAY_TMAX);
 
     if (closest.hit_anything) {
-      color = vec3(1.0, 0.0, 0.0);
+      var object_color = closest.object_color;
+      var object_material = closest.object_material;
+
+      var random_direction = rng_next_vec3_in_unit_sphere(rng_state);
+      var behavior = lambertian(closest.normal, object_material[1], random_direction, rng_state);
+
+      r_.origin = closest.p;
+      r_.direction = behavior.direction;
+
+      color *= vec3f(object_color[0], object_color[1], object_color[2]);
     }
     else {
-      return environment_color;
+      light = environment_color(r_.direction, backgroundcolor1, backgroundcolor2) * color;
+      return light;
     }
   }
-  return color;
+  light = environment_color(r_.direction, backgroundcolor1, backgroundcolor2) * color;
+  return light;
 }
 
 @compute @workgroup_size(THREAD_COUNT, THREAD_COUNT, 1)
@@ -256,7 +265,6 @@ fn render(@builtin(global_invocation_id) id : vec3u)
     // 2. Get ray
     // 3. Call trace function
     // 4. Average the color
-    var avg_light = vec3f(0.0);
 
     for (var i = 0; i < samples_per_pixel; i++) {
       var ray = get_ray(cam, uv, &rng_state);

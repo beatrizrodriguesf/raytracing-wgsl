@@ -11,9 +11,9 @@ fn hit_sphere(center: vec3f, radius: f32, r: ray, record: ptr<function, hit_reco
     return;
   }
   if (delta > 0) {
-    var t1 = (-b + 4*sqrt(delta))/(2*a);
-    var t2 = (-b - 4*sqrt(delta))/(2*a);
-    if (t1 < t2 && t1 < RAY_TMIN) {
+    var t1 = (-b + sqrt(delta))/(2*a);
+    var t2 = (-b - sqrt(delta))/(2*a);
+    if (t1 < t2 && t1 > RAY_TMIN) {
       t = t1;
     }
     else {
@@ -29,7 +29,7 @@ fn hit_sphere(center: vec3f, radius: f32, r: ray, record: ptr<function, hit_reco
   }
 
   var intersection = ray_at(r,t);
-  var n = (intersection - center)/radius;
+  var n = normalize(intersection - center);
   var normal = n;
 
   record.t = t;
