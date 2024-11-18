@@ -181,18 +181,43 @@ fn check_ray_collision(r: ray, max: f32) -> hit_record
 
 fn lambertian(normal : vec3f, absorption: f32, random_sphere: vec3f, rng_state: ptr<function, u32>) -> material_behaviour
 {
-  var direction = normalize(normal + random_sphere);
-  return material_behaviour(false, direction);
+  var new_direction = normalize(normal + random_sphere);
+  return material_behaviour(false, new_direction);
 }
 
 fn metal(normal : vec3f, direction: vec3f, fuzz: f32, random_sphere: vec3f) -> material_behaviour
 {
-  return material_behaviour(false, vec3f(0.0));
+  var new_direction = normalize(reflect(direction, normal) + fuzz*random_sphere);
+  return material_behaviour(false, new_direction);
 }
 
 fn dielectric(normal : vec3f, r_direction: vec3f, refraction_index: f32, frontface: bool, random_sphere: vec3f, fuzz: f32, rng_state: ptr<function, u32>) -> material_behaviour
-{  
-  return material_behaviour(false, vec3f(0.0));
+{ 
+  var n1 = f32(1.0);
+  var n2 = refraction_index;
+  if (!frontface) {
+    n1 = refraction_index;
+    n2 = f32(1.0);
+  }
+
+  var cosseno = dot(r_direction, normal);
+  var seno = sqrt(1-pow(cosseno,2));
+  var r0 = pow((n1-n2)/(n1+n2), 2);
+  var schlick = r0 + (1-r0)*pow((1-cosseno),5);
+  var new_direction = vec3f(0.0);
+  var random_value = rng_next_float(rng_state);
+
+  if (n1*seno/n2 > 1 || random_value > schlick) {
+    new_direction = normalize(reflect(r_direction, normal));
+  }
+  else {
+    var perpendicular = (n1/n2)*(r_direction + dot(-r_direction, normal)*normal);
+    var modulo2 = pow(perpendicular[0],2) + pow(perpendicular[1],2) + pow(perpendicular[2],2);
+    var paralelo = -sqrt(1-modulo2)*normal;
+    new_direction = normalize(paralelo + perpendicular);
+  }
+
+  return material_behaviour(false, new_direction);
 }
 
 fn emmisive(color: vec3f, light: f32) -> material_behaviour
@@ -220,12 +245,39 @@ fn trace(r: ray, rng_state: ptr<function, u32>) -> vec3f
       var object_material = closest.object_material;
 
       var random_direction = rng_next_vec3_in_unit_sphere(rng_state);
-      var behavior = lambertian(closest.normal, object_material[1], random_direction, rng_state);
 
+      var lambertian_behavior = lambertian(closest.normal, object_material[1], random_direction, rng_state);
+      var metal_behavior = metal(closest.normal, r_.direction, object_material[1], random_direction);
+
+      if (object_material[0] < 0) {
+        var dielectric_behavior = dielectric(closest.normal, r_.direction, object_material[2], closest.frontface, random_direction, f32(0.0), rng_state);
+        r_.direction = dielectric_behavior.direction;
+        color *= vec3f(object_color[0], object_color[1], object_color[2]);
+      }
+      else {
+        if (object_material[2] == 0) {
+          if (object_material[0] == 0) {
+            r_.direction = lambertian_behavior.direction;
+          }
+          else if (object_material[0] > 0) {
+            r_.direction = metal_behavior.direction; 
+          }
+          color *= object_material[0]*vec3(1.0) + (1 - object_material[0])*vec3f(object_color[0], object_color[1], object_color[2]);
+        }
+        else {
+          var random_float = rng_next_float(rng_state);
+          if (random_float > object_material[2]) {
+            r_.direction = lambertian_behavior.direction;
+            color *= vec3f(object_color[0], object_color[1], object_color[2]);
+          }
+          else {
+            r_.direction = metal_behavior.direction; 
+            color *= object_material[0]*vec3(1.0) + (1 - object_material[0])*vec3f(object_color[0], object_color[1], object_color[2]);
+          }
+        }
+      }
+      
       r_.origin = closest.p;
-      r_.direction = behavior.direction;
-
-      color *= vec3f(object_color[0], object_color[1], object_color[2]);
     }
     else {
       light = environment_color(r_.direction, backgroundcolor1, backgroundcolor2) * color;

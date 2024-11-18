@@ -36,6 +36,13 @@ fn hit_sphere(center: vec3f, radius: f32, r: ray, record: ptr<function, hit_reco
   record.p = intersection;
   record.normal = normal;
   record.hit_anything = true;
+
+  if (dot(r.direction, normal) > 0) {
+    record.frontface = false;
+  }
+  else {
+    record.frontface = true;
+  }
 }
 
 fn hit_quad(r: ray, Q: vec4f, u: vec4f, v: vec4f, record: ptr<function, hit_record>, max: f32)
