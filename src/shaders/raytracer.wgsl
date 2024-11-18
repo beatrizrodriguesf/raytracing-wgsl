@@ -328,11 +328,17 @@ fn render(@builtin(global_invocation_id) id : vec3u)
 
     var color_out = vec4(linear_to_gamma(color), 1.0);
     var map_fb = mapfb(id.xy, rez);
-    
+
     // 5. Accumulate the color
     var should_accumulate = uniforms[3];
+    var accumulated_color = fb[map_fb] * should_accumulate + color_out;
 
     // Set the color to the framebuffer
-    rtfb[map_fb] = color_out;
-    fb[map_fb] = color_out;
+    rtfb[map_fb] = accumulated_color;
+    fb[map_fb] = accumulated_color / f32(2.0);
+
+    //var should_accumulate = uniforms[3];
+
+    //rtfb[map_fb] = color_out;
+    //fb[map_fb] = color_out;
 }
