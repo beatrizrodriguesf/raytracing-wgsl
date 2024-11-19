@@ -207,14 +207,20 @@ fn check_ray_collision(r: ray, max: f32) -> hit_record
 
 fn lambertian(normal : vec3f, absorption: f32, random_sphere: vec3f, rng_state: ptr<function, u32>) -> material_behaviour
 {
-  var new_direction = normalize(normal + random_sphere);
-  return material_behaviour(false, new_direction);
+  var random_value = rng_next_float(rng_state);
+  if (random_value < absorption) {
+    return material_behaviour(false, vec3f(0.0));
+  }
+  else {
+    var new_direction = normalize(normal + random_sphere);
+    return material_behaviour(true, new_direction);
+  }
 }
 
 fn metal(normal : vec3f, direction: vec3f, fuzz: f32, random_sphere: vec3f) -> material_behaviour
 {
   var new_direction = normalize(reflect(direction, normal) + fuzz*random_sphere);
-  return material_behaviour(false, new_direction);
+  return material_behaviour(true, new_direction);
 }
 
 fn dielectric(normal : vec3f, r_direction: vec3f, refraction_index: f32, frontface: bool, random_sphere: vec3f, fuzz: f32, rng_state: ptr<function, u32>) -> material_behaviour
@@ -243,7 +249,7 @@ fn dielectric(normal : vec3f, r_direction: vec3f, refraction_index: f32, frontfa
     new_direction = normalize(paralelo + perpendicular);
   }
 
-  return material_behaviour(false, new_direction);
+  return material_behaviour(true, new_direction);
 }
 
 fn emmisive(color: vec3f, light: f32) -> material_behaviour
@@ -291,8 +297,14 @@ fn trace(r: ray, rng_state: ptr<function, u32>) -> vec3f
         var metal_behavior = metal(closest.normal, r_.direction, fuzz, random_direction);
         if (specular == 0) {
           if (smoothness == 0) { // material lambertiano
-            r_.direction = lambertian_behavior.direction;
             color *= object_color;
+            if (lambertian_behavior.scatter) {
+              r_.direction = lambertian_behavior.direction;
+            }
+            else { // raio foi absorvido
+              light += environment_color(r_.direction, backgroundcolor1, backgroundcolor2) * color;
+              return light;
+            }
           }
           else if (smoothness > 0) { // material metálico
             r_.direction = metal_behavior.direction;
@@ -302,8 +314,14 @@ fn trace(r: ray, rng_state: ptr<function, u32>) -> vec3f
         else { // material especular
           var random_float = rng_next_float(rng_state);
           if (random_float > specular) {
-            r_.direction = lambertian_behavior.direction;
-            color *= smoothness*object_color;
+            color *= object_color;
+            if (lambertian_behavior.scatter) {
+              r_.direction = lambertian_behavior.direction;
+            }
+            else { // raio foi absorvido
+              light += environment_color(r_.direction, backgroundcolor1, backgroundcolor2) * color;
+              return light;
+            }
           }
           else {
             r_.direction = metal_behavior.direction;
