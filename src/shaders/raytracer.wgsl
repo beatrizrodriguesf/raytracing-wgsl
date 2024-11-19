@@ -166,13 +166,26 @@ fn check_ray_collision(r: ray, max: f32) -> hit_record
     var sphere_i = spheresb[i];
     var sphere_center = vec3f(sphere_i.transform[0],sphere_i.transform[1], sphere_i.transform[2]);
     var sphere_radius = f32(sphere_i.transform[3]);
-    hit_sphere(sphere_center, sphere_radius, r, &record_sphere, RAY_TMAX);
+    hit_sphere(sphere_center, sphere_radius, r, &record_sphere, max);
 
     if (record_sphere.hit_anything && record_sphere.t < record.t) {
       record = record_sphere;
       record.object_color = sphere_i.color;
       record.object_material = sphere_i.material;
-    };
+    }
+  }
+  for (var i = 0; i < boxesCount; i++) {
+    var record_box = hit_record(max, vec3f(0.0), vec3f(0.0), vec4f(0.0), vec4f(0.0), false, false);
+    var box_i = boxesb[i];
+    var box_center = vec3f(box_i.center[0], box_i.center[1], box_i.center[2]);
+    var box_radius = vec3f(box_i.radius[0], box_i.radius[1], box_i.radius[2]);
+    hit_box(r, box_center, box_radius, &record_box, max);
+
+    if (record_box.hit_anything && record_box.t < record.t) {
+      record = record_box;
+      record.object_color = box_i.color;
+      record.object_material = box_i.material;
+    }
   }
 
   var closest = record;
@@ -241,50 +254,65 @@ fn trace(r: ray, rng_state: ptr<function, u32>) -> vec3f
     var closest = check_ray_collision(r_, RAY_TMAX);
 
     if (closest.hit_anything) {
-      var object_color = closest.object_color;
+      var object_color = vec3(closest.object_color[0], closest.object_color[1], closest.object_color[2]);
       var object_material = closest.object_material;
+
+      // propriedades do material
+      var smoothness = object_material[0];
+      var absortion = object_material[1];
+      var fuzz = object_material[1];
+      var specular = object_material[2];
+      var refraction_index = object_material[2];
+      var light_object = object_material[3];
 
       var random_direction = rng_next_vec3_in_unit_sphere(rng_state);
 
-      var lambertian_behavior = lambertian(closest.normal, object_material[1], random_direction, rng_state);
-      var metal_behavior = metal(closest.normal, r_.direction, object_material[1], random_direction);
-
-      if (object_material[0] < 0) {
-        var dielectric_behavior = dielectric(closest.normal, r_.direction, object_material[2], closest.frontface, random_direction, f32(0.0), rng_state);
+      // Ajustando color de acordo com o material
+      if (smoothness < 0) { // material dielétrico
+        var dielectric_behavior = dielectric(closest.normal, r_.direction, refraction_index, closest.frontface, random_direction, fuzz, rng_state);
         r_.direction = dielectric_behavior.direction;
-        color *= vec3f(object_color[0], object_color[1], object_color[2]);
+        color *= object_color;
       }
       else {
-        if (object_material[2] == 0) {
-          if (object_material[0] == 0) {
+        var lambertian_behavior = lambertian(closest.normal, absortion, random_direction, rng_state);
+        var metal_behavior = metal(closest.normal, r_.direction, fuzz, random_direction);
+        if (specular == 0) {
+          if (smoothness == 0) { // material lambertiano
             r_.direction = lambertian_behavior.direction;
+            color *= object_color;
           }
-          else if (object_material[0] > 0) {
-            r_.direction = metal_behavior.direction; 
+          else if (smoothness > 0) { // material metálico
+            r_.direction = metal_behavior.direction;
+            color *= smoothness*vec3(1.0) + (1 - smoothness)*object_color;
           }
-          color *= object_material[0]*vec3(1.0) + (1 - object_material[0])*vec3f(object_color[0], object_color[1], object_color[2]);
         }
-        else {
+        else { // material especular
           var random_float = rng_next_float(rng_state);
-          if (random_float > object_material[2]) {
+          if (random_float > specular) {
             r_.direction = lambertian_behavior.direction;
-            color *= vec3f(object_color[0], object_color[1], object_color[2]);
+            color *= smoothness*object_color;
           }
           else {
-            r_.direction = metal_behavior.direction; 
-            color *= object_material[0]*vec3(1.0) + (1 - object_material[0])*vec3f(object_color[0], object_color[1], object_color[2]);
+            r_.direction = metal_behavior.direction;
+            color *= smoothness*vec3(1.0) + (1 - smoothness)*object_color;
           }
         }
+      }
+
+      // ajustando light em materiais emissivos
+      if (light_object > 0) {
+        var adicional_light = light_object*object_color;
+        light += adicional_light*color;
       }
       
       r_.origin = closest.p;
     }
     else {
-      light = environment_color(r_.direction, backgroundcolor1, backgroundcolor2) * color;
+      light += environment_color(r_.direction, backgroundcolor1, backgroundcolor2) * color;
       return light;
     }
   }
-  light = environment_color(r_.direction, backgroundcolor1, backgroundcolor2) * color;
+  light += environment_color(r_.direction, backgroundcolor1, backgroundcolor2) * color;
   return light;
 }
 
