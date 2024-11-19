@@ -201,6 +201,24 @@ fn check_ray_collision(r: ray, max: f32) -> hit_record
     }
   }
 
+  for (var i = 0; i < meshCount; i++) {
+    var mesh_i = meshb[i];
+    for (var t = mesh_i.start; t < mesh_i.end; t += 1.0) {
+      var record_triangle = hit_record(max, vec3f(0.0), vec3f(0.0), vec4f(0.0), vec4f(0.0), false, false);
+      var triangle_t = trianglesb[u32(t)];
+      var v0 = vec3f(triangle_t.v0[0], triangle_t.v0[1], triangle_t.v0[2]);
+      var v1 = vec3f(triangle_t.v1[0], triangle_t.v1[1], triangle_t.v1[2]);
+      var v2 = vec3f(triangle_t.v2[0], triangle_t.v2[1], triangle_t.v2[2]);
+      hit_triangle(r, v0, v1, v2, &record_triangle, max);
+
+      if (record_triangle.hit_anything && record_triangle.t < record.t) {
+        record = record_triangle;
+        record.object_color = mesh_i.color;
+        record.object_material = mesh_i.material;
+      }
+    }
+  }
+
   var closest = record;
   return closest;
 }
