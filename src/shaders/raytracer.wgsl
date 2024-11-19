@@ -174,6 +174,7 @@ fn check_ray_collision(r: ray, max: f32) -> hit_record
       record.object_material = sphere_i.material;
     }
   }
+
   for (var i = 0; i < boxesCount; i++) {
     var record_box = hit_record(max, vec3f(0.0), vec3f(0.0), vec4f(0.0), vec4f(0.0), false, false);
     var box_i = boxesb[i];
@@ -185,6 +186,18 @@ fn check_ray_collision(r: ray, max: f32) -> hit_record
       record = record_box;
       record.object_color = box_i.color;
       record.object_material = box_i.material;
+    }
+  }
+
+  for (var i = 0; i < quadsCount; i++) {
+    var record_quad = hit_record(max, vec3f(0.0), vec3f(0.0), vec4f(0.0), vec4f(0.0), false, false);
+    var quad_i = quadsb[i];
+    hit_quad(r, quad_i.Q, quad_i.u, quad_i.v, &record_quad, max);
+
+    if (record_quad.hit_anything && record_quad.t < record.t) {
+      record = record_quad;
+      record.object_color = quad_i.color;
+      record.object_material = quad_i.material;
     }
   }
 
