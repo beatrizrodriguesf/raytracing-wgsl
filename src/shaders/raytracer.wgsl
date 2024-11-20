@@ -224,9 +224,17 @@ fn check_ray_collision(r: ray, max: f32) -> hit_record
       vec4f(0.0, 0.0, 1.0, 0.0), // Coluna 3
       vec4f(mesh_i.transform[0], mesh_i.transform[1], mesh_i.transform[2], 1.0)  );
 
-      v0 = matriz_transform*matriz_scale*v0;
-      v1 = matriz_transform*matriz_scale*v1;
-      v2 = matriz_transform*matriz_scale*v2;
+      // rotate:
+      var q = quaternion_from_euler(vec3f(-mesh_i.rotation[0], -mesh_i.rotation[1], -mesh_i.rotation[2]));
+      var matriz_rotate: mat4x4<f32> = mat4x4<f32>(
+      vec4f(1.0 - 2*(pow(q.y, 2)+pow(q.z, 2)), 2*(q.x*q.y + q.z*q.w), 2*(q.x*q.z - q.y*q.w), 0.0), // Coluna 1
+      vec4f(2.0*(q.x*q.y - q.z*q.w), 1.0 - 2*(pow(q.x, 2)+pow(q.z, 2)), 2*(q.y*q.z + q.x*q.w), 0.0), // Coluna 2
+      vec4f(2.0*(q.x*q.z + q.y*q.w), 2*(q.y*q.z - q.x*q.w), 1.0 - 2*(pow(q.x, 2)+pow(q.y, 2)), 0.0), // Coluna 3
+      vec4f(0.0, 0.0, 0.0, 1.0)  );
+
+      v0 = matriz_transform * matriz_rotate * matriz_scale * v0;
+      v1 = matriz_transform * matriz_rotate * matriz_scale * v1;
+      v2 = matriz_transform * matriz_rotate * matriz_scale * v2;
 
       var v0_t = vec3f(v0[0], v0[1], v0[2]);
       var v1_t = vec3f(v1[0], v1[1], v1[2]);
