@@ -203,13 +203,36 @@ fn check_ray_collision(r: ray, max: f32) -> hit_record
 
   for (var i = 0; i < meshCount; i++) {
     var mesh_i = meshb[i];
-    for (var t = mesh_i.start; t < mesh_i.end; t += 1.0) {
+    for (var t = mesh_i.start; t <= mesh_i.end; t += 1.0) {
       var record_triangle = hit_record(max, vec3f(0.0), vec3f(0.0), vec4f(0.0), vec4f(0.0), false, false);
       var triangle_t = trianglesb[u32(t)];
-      var v0 = vec3f(triangle_t.v0[0], triangle_t.v0[1], triangle_t.v0[2]);
-      var v1 = vec3f(triangle_t.v1[0], triangle_t.v1[1], triangle_t.v1[2]);
-      var v2 = vec3f(triangle_t.v2[0], triangle_t.v2[1], triangle_t.v2[2]);
-      hit_triangle(r, v0, v1, v2, &record_triangle, max);
+      var v0 = vec4f(triangle_t.v0[0], triangle_t.v0[1], triangle_t.v0[2], 1.0);
+      var v1 = vec4f(triangle_t.v1[0], triangle_t.v1[1], triangle_t.v1[2], 1.0);
+      var v2 = vec4f(triangle_t.v2[0], triangle_t.v2[1], triangle_t.v2[2], 1.0);
+
+      // scale:
+      var matriz_scale: mat4x4<f32> = mat4x4<f32>(
+      vec4f(mesh_i.scale[0], 0.0, 0.0, 0.0), // Coluna 1
+      vec4f(0.0, mesh_i.scale[1], 0.0, 0.0), // Coluna 2
+      vec4f(0.0, 0.0, mesh_i.scale[2], 0.0), // Coluna 3
+      vec4f(0.0, 0.0, 0.0, 1.0)  );
+
+      // transform:
+      var matriz_transform: mat4x4<f32> = mat4x4<f32>(
+      vec4f(1.0, 0.0, 0.0, 0.0), // Coluna 1
+      vec4f(0.0, 1.0, 0.0, 0.0), // Coluna 2
+      vec4f(0.0, 0.0, 1.0, 0.0), // Coluna 3
+      vec4f(mesh_i.transform[0], mesh_i.transform[1], mesh_i.transform[2], 1.0)  );
+
+      v0 = matriz_transform*matriz_scale*v0;
+      v1 = matriz_transform*matriz_scale*v1;
+      v2 = matriz_transform*matriz_scale*v2;
+
+      var v0_t = vec3f(v0[0], v0[1], v0[2]);
+      var v1_t = vec3f(v1[0], v1[1], v1[2]);
+      var v2_t = vec3f(v2[0], v2[1], v2[2]);
+
+      hit_triangle(r, v0_t, v1_t, v2_t, &record_triangle, max);
 
       if (record_triangle.hit_anything && record_triangle.t < record.t) {
         record = record_triangle;
