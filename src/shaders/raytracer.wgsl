@@ -291,22 +291,24 @@ fn dielectric(normal : vec3f, r_direction: vec3f, refraction_index: f32, frontfa
 { 
   var n1 = f32(1.0);
   var n2 = refraction_index;
+  var n = -normal;
   if (!frontface) {
     n1 = refraction_index;
     n2 = f32(1.0);
+    n = normal;
   }
 
-  var cosseno = dot(r_direction, normal);
+  var cosseno = dot(r_direction, n);
   var seno = sqrt(1-pow(cosseno,2));
   var r0 = pow((n1-n2)/(n1+n2), 2);
   var schlick = r0 + (1-r0)*pow((1-cosseno),5);
   var new_direction = vec3f(0.0);
   var random_value = rng_next_float(rng_state);
 
-  if (n1*seno/n2 > 1 || random_value > schlick) {
-    new_direction = normalize(reflect(r_direction, normal));
+  if (n1*seno/n2 > 1 || random_value < schlick) { // reflexão
+    new_direction = normalize(reflect(r_direction, n));
   }
-  else {
+  else { // refração
     var perpendicular = (n1/n2)*(r_direction + dot(-r_direction, normal)*normal);
     var modulo2 = pow(perpendicular[0],2) + pow(perpendicular[1],2) + pow(perpendicular[2],2);
     var paralelo = -sqrt(1-modulo2)*normal;
