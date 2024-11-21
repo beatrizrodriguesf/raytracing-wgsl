@@ -181,18 +181,27 @@ fn check_ray_collision(r: ray, max: f32) -> hit_record
     var box_center = vec3f(box_i.center[0], box_i.center[1], box_i.center[2]);
     var box_radius = vec3f(box_i.radius[0], box_i.radius[1], box_i.radius[2]);
 
+    var q = quaternion_from_euler(vec3f(box_i.rotation[0], box_i.rotation[1], box_i.rotation[2]));
+    var q_inv = q_inverse(q);
+
+    var r_rotated = rotate_ray_quaternion(r, box_center, q);
+
     if (box_radius[0] < 0) {
-      hit_column(r, box_center, box_radius, &record_box, max);
+      hit_column(r_rotated, box_center, box_radius, &record_box, max);
     }
     else {
-       hit_box(r, box_center, box_radius, &record_box, max);
+       hit_box(r_rotated, box_center, box_radius, &record_box, max);
     }
 
     if (record_box.hit_anything && record_box.t < record.t) {
       record = record_box;
+      var p_vec = record.p - box_center;
+      record.p = box_center + rotate_vector(p_vec, q_inv);
+      record.normal = rotate_vector(record.normal, q_inv);
       record.object_color = box_i.color;
       record.object_material = box_i.material;
     }
+
   }
 
   for (var i = 0; i < quadsCount; i++) {
