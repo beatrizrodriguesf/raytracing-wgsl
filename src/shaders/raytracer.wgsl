@@ -180,7 +180,13 @@ fn check_ray_collision(r: ray, max: f32) -> hit_record
     var box_i = boxesb[i];
     var box_center = vec3f(box_i.center[0], box_i.center[1], box_i.center[2]);
     var box_radius = vec3f(box_i.radius[0], box_i.radius[1], box_i.radius[2]);
-    hit_box(r, box_center, box_radius, &record_box, max);
+
+    if (box_radius[0] < 0) {
+      hit_column(r, box_center, box_radius, &record_box, max);
+    }
+    else {
+       hit_box(r, box_center, box_radius, &record_box, max);
+    }
 
     if (record_box.hit_anything && record_box.t < record.t) {
       record = record_box;
